@@ -141,6 +141,7 @@ pub(crate) type FormatFn = Box<dyn Fn(&mut Formatter, &Record) -> io::Result<()>
 pub(crate) struct Builder {
     pub format_timestamp: Option<TimestampPrecision>,
     pub format_module_path: bool,
+    pub format_file_line: bool,
     pub format_level: bool,
     pub format_indent: Option<usize>,
     pub custom_format: Option<FormatFn>,
@@ -152,6 +153,7 @@ impl Default for Builder {
         Builder {
             format_timestamp: Some(Default::default()),
             format_module_path: true,
+            format_file_line: false,
             format_level: true,
             format_indent: Some(4),
             custom_format: None,
@@ -184,6 +186,7 @@ impl Builder {
                 let fmt = DefaultFormat {
                     timestamp: built.format_timestamp,
                     module_path: built.format_module_path,
+                    file_line: built.format_file_line,
                     level: built.format_level,
                     written_header_value: false,
                     indent: built.format_indent,
@@ -207,6 +210,7 @@ type SubtleStyle = &'static str;
 struct DefaultFormat<'a> {
     timestamp: Option<TimestampPrecision>,
     module_path: bool,
+    file_line: bool,
     level: bool,
     written_header_value: bool,
     indent: Option<usize>,
@@ -218,6 +222,7 @@ impl<'a> DefaultFormat<'a> {
         self.write_timestamp()?;
         self.write_level(record)?;
         self.write_module_path(record)?;
+        self.write_file_line(record)?;
         self.finish_header()?;
 
         self.write_args(record)
@@ -302,6 +307,20 @@ impl<'a> DefaultFormat<'a> {
 
         if let Some(module_path) = record.module_path() {
             self.write_header_value(module_path)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn write_file_line(&mut self, record: &Record) -> io::Result<()> {
+        if !self.file_line {
+            Ok(())
+        } else if let Some(filename) = record.file() {
+            if let Some(line) = record.line() {
+                self.write_header_value(format!("{}:{}", filename, line))
+            } else {
+                self.write_header_value(filename)
+            }
         } else {
             Ok(())
         }
@@ -399,6 +418,7 @@ mod tests {
         let written = write(DefaultFormat {
             timestamp: None,
             module_path: true,
+            file_line: false,
             level: true,
             written_header_value: false,
             indent: None,
@@ -419,6 +439,7 @@ mod tests {
         let written = write(DefaultFormat {
             timestamp: None,
             module_path: false,
+            file_line: false,
             level: false,
             written_header_value: false,
             indent: None,
@@ -439,6 +460,7 @@ mod tests {
         let written = write(DefaultFormat {
             timestamp: None,
             module_path: true,
+            file_line: false,
             level: true,
             written_header_value: false,
             indent: Some(4),
@@ -459,6 +481,7 @@ mod tests {
         let written = write(DefaultFormat {
             timestamp: None,
             module_path: true,
+            file_line: false,
             level: true,
             written_header_value: false,
             indent: Some(0),
@@ -479,6 +502,7 @@ mod tests {
         let written = write(DefaultFormat {
             timestamp: None,
             module_path: false,
+            file_line: false,
             level: false,
             written_header_value: false,
             indent: Some(4),
